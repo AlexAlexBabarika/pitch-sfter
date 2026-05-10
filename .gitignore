@@ -8,5 +8,5 @@
 .env.test.local
 .env.production.local
 __pycache__/
-example.mp3
+example.wav
 .DS_STORE

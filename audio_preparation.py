@@ -1,18 +1,30 @@
 import librosa
 import numpy as np
 import pyloudnorm
+import crepe
 
 SUPPORTED_SRS = [8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000]
+CREPE_MODEL_CAPACITIES = ["tiny", "small", "medium", "large", "full"]
+
 
 def load_audio_file(file_path: str) -> tuple[np.ndarray, float | int]:
     audio, sr = librosa.load(file_path, sr=None)
 
     return audio, sr
 
-def resample_audio(audio: np.ndarray, original_sr: float | int, target_sr: int = 22050) -> tuple[np.ndarray, int]:
+
+def resample_audio(
+    audio: np.ndarray, original_sr: float | int, target_sr: int = 22050
+) -> tuple[np.ndarray, int]:
     if target_sr not in SUPPORTED_SRS:
-        raise ValueError(f"The target rate of {target_sr} isn't supported. Supported rates:\n{SUPPORTED_SRS}")
-    return [librosa.resample(audio, orig_sr=original_sr, target_sr=target_sr), target_sr]
+        raise ValueError(
+            f"The target rate of {target_sr} isn't supported. Supported rates:\n{SUPPORTED_SRS}"
+        )
+    return [
+        librosa.resample(audio, orig_sr=original_sr, target_sr=target_sr),
+        target_sr,
+    ]
+
 
 def normalize_audio(audio: np.ndarray, sr: int, target_lufs: int = -23) -> np.ndarray:
     meter = pyloudnorm.Meter(rate=sr)
@@ -20,18 +32,48 @@ def normalize_audio(audio: np.ndarray, sr: int, target_lufs: int = -23) -> np.nd
     audio = pyloudnorm.normalize.loudness(audio, loudness, target_lufs)
     return audio
 
+
 def segment_audio(audio: np.ndarray, sr: int, segment_length: int) -> list[np.ndarray]:
     segments: list[np.ndarray] = []
     samples_per_segment: int = sr * segment_length
 
     for i in range(0, len(audio), samples_per_segment):
-        segments.append(audio[i:i+samples_per_segment])
-    
+        segments.append(audio[i : i + samples_per_segment])
+
     return segments
 
-def compute_mel_spectrogram(audio: np.ndarray, sr: int | float, n_fft: int =1024, hop_length: int = 256, n_mels: int = 80) -> np.ndarray:
-    mel_spectrogram = librosa.feature.melspectrogram(y=audio, sr=sr, n_fft=n_fft, hop_length=hop_length, n_mels=n_mels)
+
+def compute_mel_spectrogram(
+    audio: np.ndarray,
+    sr: int | float,
+    n_fft: int = 1024,
+    hop_length: int = 256,
+    n_mels: int = 80,
+) -> np.ndarray:
+    mel_spectrogram = librosa.feature.melspectrogram(
+        y=audio, sr=sr, n_fft=n_fft, hop_length=hop_length, n_mels=n_mels
+    )
     return mel_spectrogram
+
 
 def mel_log_compression(mel_spectrogram: np.ndarray) -> np.ndarray:
     return np.log(mel_spectrogram + 1e-5)
+
+
+def extract_f0(
+    audio: np.ndarray,
+    sr: int,
+    viterbi: bool = True,
+    step_size: int = 10,
+    model_capacity: str = "medium",
+):
+    if model_capacity not in CREPE_MODEL_CAPACITIES:
+        raise ValueError(
+            f"Model capacity {model_capacity} isn't supported by CREPE. Supported capacities:\n{CREPE_MODEL_CAPACITIES}"
+        )
+
+    time, frequency, confidence, activation = crepe.predict(
+        audio, sr, viterbi=viterbi, step_size=step_size, model_capacity=model_capacity
+    )
+
+    return time, frequency, confidence
