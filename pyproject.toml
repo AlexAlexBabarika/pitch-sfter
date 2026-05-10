@@ -6,11 +6,19 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "altair>=6.1.0",
+    "crepe==0.0.16",
     "huggingface>=0.0.1",
+    "librosa>=0.11.0",
     "mypy>=2.0.0",
     "numpy>=2.4.4",
     "pandas>=3.0.2",
     "polars>=1.40.1",
+    "pyloudnorm>=0.2.0",
     "ruff>=0.15.12",
+    "soundfile>=0.13.1",
+    "tensorflow>=2.21.0",
     "torch>=2.11.0",
 ]
+
+[tool.uv.extra-build-dependencies]
+crepe = ["setuptools<81"]
