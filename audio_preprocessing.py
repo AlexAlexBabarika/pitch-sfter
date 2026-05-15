@@ -115,7 +115,9 @@ def process_and_save(
         if budget["remaining_s"] <= 0:
             break
         mel = compute_mel_spectrogram(clip)  # [80, T]
+        print("computed mel")
         f0 = extract_f0(clip)  # [T_f0]
+        print("extracted f0")
         # align F0 length to mel length
         if len(f0) != mel.shape[1]:
             f0 = np.interp(
