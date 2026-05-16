@@ -27,7 +27,7 @@ mel = torchaudio.transforms.MelSpectrogram(
     f_max=cfg.fmax,
     power=1.0,
     center=True,
-)
+).to(DEVICE)
 
 
 def load_audio_file(file_path: str) -> tuple[np.ndarray, int | float]:
@@ -72,8 +72,8 @@ def segment_audio(audio: np.ndarray) -> Generator[np.ndarray]:
 def compute_mel_spectrogram(
     audio: np.ndarray,
 ) -> np.ndarray:
-    t = torch.from_numpy(audio).float().unsqueeze(0)
-    m = mel(t).squeeze(0).numpy()
+    t = torch.from_numpy(audio).float().unsqueeze(0).to(DEVICE)
+    m = mel(t).squeeze(0).cpu().numpy()
 
     return np.log(np.maximum(m, 1e-5)).astype(np.float32)
 
