@@ -10,6 +10,7 @@ dependencies = [
     "datasets>=4.8.5",
     "dotenv>=0.9.9",
     "huggingface>=0.0.1",
+    "kernels>=0.14.1",
     "librosa>=0.11.0",
     "mypy>=2.0.0",
     "numpy>=2.4.4",

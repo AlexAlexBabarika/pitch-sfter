@@ -38,3 +38,12 @@ class TrainConfig:
     perturb_st: int = 2
     batch_size: int = 32
     num_workers: int = 6
+
+
+@dataclass
+class ModelConfig:
+    base_channels: int = 64
+    channel_mults = [1, 2, 4, 6]  # 64, 128, 256, 384
+    shift_emb_dim: int = 64
+    f0_emb_dim: int = 64
+    attention_in_bottleneck: bool = True
