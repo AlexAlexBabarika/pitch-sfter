@@ -88,3 +88,20 @@ class GatedSkip(nn.Module):
         return skip * g
 
 
+class SelfAttn(nn.Module):
+    def __init__(self, channels: int, heads: int = 4):
+        super().__init__()
+        self.norm = nn.GroupNorm(8, channels)
+        self.qkv = nn.Conv2d(channels, channels * 3, 1)
+        self.proj = nn.Conv2d(channels, channels, 1)
+        self.heads = heads
+
+    def forward(self, x):
+        B, C, H, W = x.shape
+        h = self.norm(x)
+        qkv = self.qkv(h).reshape(B, 3, self.heads, C // self.heads, H * W)
+        q, k, v = qkv.unbind(1)  # [B, h, d, HW]
+        q, k, v = (t.transpose(-1, -2).contiguous() for t in (q, k, v))  # [B, h, HW, d]
+        out = F.scaled_dot_product_attention(q, k, v)  # [B, h, HW, d]
+        out = out.transpose(-1, -2).reshape(B, C, H, W)
+        return x + self.proj(out)
