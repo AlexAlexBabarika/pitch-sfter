@@ -70,31 +70,26 @@ def segment_audio(audio: np.ndarray) -> Generator[tuple[np.ndarray, int]]:
         yield clip, real_len
 
 
-def compute_mel_spectrogram(
-    audio: np.ndarray,
-) -> np.ndarray:
-    t = torch.from_numpy(audio).float().unsqueeze(0).to(DEVICE)
-    m = MEL_TRANSFORM(t).squeeze(0).cpu().numpy()
-
+def compute_mel_spectrogram(clips: np.ndarray) -> np.ndarray:
+    t = torch.from_numpy(clips).float().to(DEVICE)
+    m = MEL_TRANSFORM(t).cpu().numpy()
     return np.log(np.maximum(m, 1e-5)).astype(np.float32)
 
 
-def extract_f0(
-    audio: np.ndarray,
-):
+def extract_f0(clips: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     if cfg.crepe_model_capacity not in CREPE_MODEL_CAPACITIES:
         raise ValueError(
             f"Model capacity {cfg.crepe_model_capacity} isn't supported by torchcrepe. Supported capacities:\n{CREPE_MODEL_CAPACITIES}"
         )
 
-    w16 = librosa.resample(audio, orig_sr=cfg.target_sr, target_sr=16000)
-    audio_t = torch.from_numpy(w16).float().unsqueeze(0).to(DEVICE)
+    audio_t = torch.from_numpy(clips).float().to(DEVICE)
+    audio_16k = torchaudio.functional.resample(audio_t, cfg.target_sr, 16000)
     # CREPE frame interval is 186/16000 ≈ 11.625 ms; mel frame interval is 256/22050 ≈ 11.610 ms. The np.interp later masks it
     # Across 220 frames it's gonna be around 3ms. Has to be examined
     hop = round(16000 * cfg.hop_length / cfg.target_sr)
 
     pitch, periodicity = torchcrepe.predict(
-        audio_t,
+        audio_16k,
         sample_rate=16000,
         hop_length=hop,
         model=cfg.crepe_model_capacity,
@@ -104,10 +99,7 @@ def extract_f0(
         return_periodicity=True,
     )
 
-    freq = pitch.squeeze(0).cpu().numpy()
-    conf = periodicity.squeeze(0).cpu().numpy()
-    time = np.arange(len(freq), dtype=np.float32) * hop / 16000.0
-    return time, freq, conf
+    return pitch.cpu().numpy().astype(np.float32), periodicity.cpu().numpy().astype(np.float32)
 
 
 def process_and_save(
@@ -122,16 +114,30 @@ def process_and_save(
         return 0.0
     audio = normalize_audio(audio)
 
-    written = 0.0
-    for i, (clip, real_len) in enumerate(segment_audio(audio)):
-        if budget["remaining_s"] <= 0:
+    # Collect clips up to the budget, then run mel + CREPE on the whole batch
+    clips: list[np.ndarray] = []
+    real_lens: list[int] = []
+    remaining = budget["remaining_s"]
+    for clip, real_len in segment_audio(audio):
+        if remaining <= 0:
             break
-        mel = compute_mel_spectrogram(clip)  # [80, T]
-        _, f0, conf = extract_f0(clip)  # [T_f0]
-        # align F0 and periodicity to mel length
-        if len(f0) != mel.shape[1]:
+        clips.append(clip)
+        real_lens.append(real_len)
+        remaining -= real_len / cfg.target_sr
+    if not clips:
+        return 0.0
+
+    batch = np.stack(clips, axis=0)
+    mels = compute_mel_spectrogram(batch)  # (B, n_mels, T_mel)
+    f0s, confs = extract_f0(batch)  # (B, T_f0)
+
+    written = 0.0
+    for i, (clip, real_len, mel, f0, conf) in enumerate(
+        zip(clips, real_lens, mels, f0s, confs)
+    ):
+        if f0.shape[0] != mel.shape[1]:
             x_new = np.linspace(0, 1, mel.shape[1])
-            x_old = np.linspace(0, 1, len(f0))
+            x_old = np.linspace(0, 1, f0.shape[0])
             f0 = np.interp(x_new, x_old, f0).astype(np.float32)
             conf = np.interp(x_new, x_old, conf).astype(np.float32)
         out_path = out_dir / f"{base_id}_{i:04d}.npz"
