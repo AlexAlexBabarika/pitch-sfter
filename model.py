@@ -158,6 +158,7 @@ class PitchUNet(nn.Module):
 
         # zero-init output so initial output ≈ 0; loss starts as |target|
         nn.init.zeros_(self.out_conv.weight)
+        # pyrefly: ignore [bad-argument-type]
         nn.init.zeros_(self.out_conv.bias)
 
     def forward(

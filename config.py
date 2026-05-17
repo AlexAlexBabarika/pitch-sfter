@@ -38,6 +38,18 @@ class TrainConfig:
     perturb_st: int = 2
     batch_size: int = 32
     num_workers: int = 6
+    warmup_steps: int = 1000
+    max_steps: int = 200000
+    lr: float = 2.0e-4
+    weight_decay: float = 0.01
+    betas = (0.8, 0.99)
+    grad_clip: float = 1.0
+    ema_decay: float = 0.999
+    cond_dropout: float = 0.1
+    skip_dropout: float = 0.2
+    log_every: int = 100
+    val_every: int = 5000
+    ckpt_dir: str = "./checkpoints"
 
 
 @dataclass
