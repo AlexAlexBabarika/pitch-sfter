@@ -2,8 +2,8 @@ import pyloudnorm
 import librosa
 import torchaudio
 import torch
+import torchcrepe
 import numpy as np
-import crepe
 import math
 from typing import Generator
 from config import AudioConfig
@@ -12,8 +12,9 @@ from pathlib import Path
 cfg = AudioConfig()
 
 SUPPORTED_SRS = [8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000]
-CREPE_MODEL_CAPACITIES = ["tiny", "small", "medium", "large", "full"]
+CREPE_MODEL_CAPACITIES = ["tiny", "full"]
 CLIP_LEN = int(cfg.clip_seconds * cfg.target_sr)
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 meter = pyloudnorm.Meter(rate=cfg.target_sr)
 mel = torchaudio.transforms.MelSpectrogram(
@@ -26,7 +27,7 @@ mel = torchaudio.transforms.MelSpectrogram(
     f_max=cfg.fmax,
     power=1.0,
     center=True,
-)
+).to(DEVICE)
 
 
 def load_audio_file(file_path: str) -> tuple[np.ndarray, int | float]:
@@ -71,8 +72,8 @@ def segment_audio(audio: np.ndarray) -> Generator[np.ndarray]:
 def compute_mel_spectrogram(
     audio: np.ndarray,
 ) -> np.ndarray:
-    t = torch.from_numpy(audio).float().unsqueeze(0)
-    m = mel(t).squeeze(0).numpy()
+    t = torch.from_numpy(audio).float().unsqueeze(0).to(DEVICE)
+    m = mel(t).squeeze(0).cpu().numpy()
 
     return np.log(np.maximum(m, 1e-5)).astype(np.float32)
 
@@ -82,19 +83,27 @@ def extract_f0(
 ):
     if cfg.crepe_model_capacity not in CREPE_MODEL_CAPACITIES:
         raise ValueError(
-            f"Model capacity {cfg.crepe_model_capacity} isn't supported by CREPE. Supported capacities:\n{CREPE_MODEL_CAPACITIES}"
+            f"Model capacity {cfg.crepe_model_capacity} isn't supported by torchcrepe. Supported capacities:\n{CREPE_MODEL_CAPACITIES}"
         )
 
     w16 = librosa.resample(audio, orig_sr=cfg.target_sr, target_sr=16000)
-    time, freq, conf, _ = crepe.predict(
-        w16,
-        16000,
-        viterbi=True,
-        step_size=1000 * cfg.hop_length / cfg.target_sr,
-        verbose=0,
-        model_capacity=cfg.crepe_model_capacity,
+    audio_t = torch.from_numpy(w16).float().unsqueeze(0).to(DEVICE)
+    hop = int(round(16000 * cfg.hop_length / cfg.target_sr))
+
+    pitch, periodicity = torchcrepe.predict(
+        audio_t,
+        sample_rate=16000,
+        hop_length=hop,
+        model=cfg.crepe_model_capacity,
+        batch_size=2048,
+        device=DEVICE,
+        decoder=torchcrepe.decode.viterbi,
+        return_periodicity=True,
     )
 
+    freq = pitch.squeeze(0).cpu().numpy()
+    conf = periodicity.squeeze(0).cpu().numpy()
+    time = np.arange(len(freq), dtype=np.float32) * hop / 16000.0
     return time, freq, conf
 
 
@@ -115,9 +124,7 @@ def process_and_save(
         if budget["remaining_s"] <= 0:
             break
         mel = compute_mel_spectrogram(clip)  # [80, T]
-        print("computed mel")
-        f0 = extract_f0(clip)  # [T_f0]
-        print("extracted f0")
+        _, f0, _ = extract_f0(clip)  # [T_f0]
         # align F0 length to mel length
         if len(f0) != mel.shape[1]:
             f0 = np.interp(
