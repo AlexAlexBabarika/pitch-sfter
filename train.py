@@ -76,8 +76,8 @@ def main():
             f0 = batch["f0"].to(device, non_blocking=True)
             shift = batch["shift"].to(device, non_blocking=True)
 
-            # Conditioning dropout: zero out the shift signal independently per
-            # sample so the model can't depend on it to detect identity case.
+            # Conditioning dropout: zero the shift and flag those samples via
+            # cond_mask so the model can distinguish "dropped" from "shift=0".
             keep = (
                 torch.rand(shift.shape[0], device=shift.device)
                 >= train_config.cond_dropout
@@ -88,7 +88,8 @@ def main():
                 device_type="cuda", dtype=torch.bfloat16, enabled=(device == "cuda")
             ):
                 pred = model(
-                    mel_in, f0, shift, skip_dropout_p=train_config.skip_dropout
+                    mel_in, f0, shift, keep,
+                    skip_dropout_p=train_config.skip_dropout,
                 )
                 loss, parts = loss_fn(pred, mel_tgt)
 
@@ -133,7 +134,8 @@ def validate(model, ema, eval_model, loader, step):
         mel_tgt = batch["mel_tgt"].to(device)
         f0 = batch["f0"].to(device)
         shift = batch["shift"].to(device)
-        pred = eval_model(mel_in, f0, shift)
+        cond_mask = torch.ones_like(shift)
+        pred = eval_model(mel_in, f0, shift, cond_mask)
         total += F.l1_loss(pred, mel_tgt).item() * mel_in.size(0)
         n += mel_in.size(0)
     print(f"\n[val step {step}] L1={total / n:.4f}")
@@ -142,7 +144,9 @@ def validate(model, ema, eval_model, loader, step):
 
 def save_ckpt(model, ema, step, final=False):
     name = "final.pt" if final else f"step_{step}.pt"
-    path = Path(train_config.ckpt_dir) / name
+    ckpt_dir = Path(train_config.ckpt_dir)
+    ckpt_dir.mkdir(parents=True, exist_ok=True)
+    path = ckpt_dir / name
     torch.save(
         {
             "model": model.state_dict(),
