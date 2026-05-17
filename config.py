@@ -41,7 +41,7 @@ class TrainConfig:
     warmup_steps: int = 1000
     max_steps: int = 200000
     lr: float = 2.0e-4
-    weight_decay: float= 0.01
+    weight_decay: float = 0.01
     betas = (0.8, 0.99)
     grad_clip: float = 1.0
     ema_decay: float = 0.999
