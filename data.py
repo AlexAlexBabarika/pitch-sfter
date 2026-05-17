@@ -21,7 +21,7 @@ def mel_pitch_shift(mel: torch.Tensor, semitones: float) -> torch.Tensor:
     if n_bin == 0:
         return mel
 
-    out = torch.roll(mel, shifts=n_bin)
+    out = torch.roll(mel, shifts=n_bin, dims=-2)
     if n_bin > 0:
         out[:n_bin] = mel.min()
     else:
