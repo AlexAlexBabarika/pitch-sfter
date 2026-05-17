@@ -136,10 +136,13 @@ def process_and_save(
         zip(clips, real_lens, mels, f0s, confs)
     ):
         if f0.shape[0] != mel.shape[1]:
-            x_new = np.linspace(0, 1, mel.shape[1])
-            x_old = np.linspace(0, 1, f0.shape[0])
-            f0 = np.interp(x_new, x_old, f0).astype(np.float32)
-            conf = np.interp(x_new, x_old, conf).astype(np.float32)
+            # Nearest-neighbor: linear interp would smear CREPE's 0-Hz unvoiced
+            # frames into bogus low pitches across voiced -> unvoiced transitions.
+            idx = np.round(
+                np.linspace(0, f0.shape[0] - 1, mel.shape[1])
+            ).astype(np.int64)
+            f0 = f0[idx]
+            conf = conf[idx]
         out_path = out_dir / f"{base_id}_{i:04d}.npz"
         np.savez(
             out_path,
