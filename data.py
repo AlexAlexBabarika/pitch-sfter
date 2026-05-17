@@ -106,12 +106,14 @@ class PitchDataset(Dataset):
     @staticmethod
     def make_loader(split="train"):
         ds = PitchDataset(split)
+        is_train = split == "train"
+        nw = train_cfg.num_workers if is_train else min(2, train_cfg.num_workers)
         return DataLoader(
             ds,
             batch_size=train_cfg.batch_size,
-            shuffle=(split == "train"),
-            num_workers=train_cfg.num_workers,
+            shuffle=is_train,
+            num_workers=nw,
             pin_memory=True,
-            drop_last=True,
-            persistent_workers=True,
+            drop_last=is_train,
+            persistent_workers=(nw > 0),
         )
