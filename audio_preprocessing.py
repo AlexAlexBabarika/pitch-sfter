@@ -106,7 +106,7 @@ def process_and_save(
     if src_sr != cfg.target_sr:
         audio = resample_audio_to_target_sr(audio, src_sr)
     audio, _ = librosa.effects.trim(audio, top_db=30)
-    if len(audio) < cfg.target_lufs * 0.5:
+    if len(audio) < cfg.target_sr * 0.5:
         return 0.0
     audio = normalize_audio(audio)
 
