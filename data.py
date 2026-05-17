@@ -12,6 +12,7 @@ data_cfg = DataConfig()
 audio_cfg = AudioConfig()
 train_cfg = TrainConfig()
 
+
 def _mel_centers_hz(n_mels: int, fmin: float, fmax: float) -> np.ndarray:
     # HTK mel scale — matches torchaudio.transforms.MelSpectrogram default.
     mel_min = 2595.0 * math.log10(1.0 + fmin / 700.0)
