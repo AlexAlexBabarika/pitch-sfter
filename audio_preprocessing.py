@@ -58,15 +58,16 @@ def normalize_audio(audio: np.ndarray) -> np.ndarray:
     return audio.astype(np.float32)
 
 
-def segment_audio(audio: np.ndarray) -> Generator[np.ndarray]:
+def segment_audio(audio: np.ndarray) -> Generator[tuple[np.ndarray, int]]:
     n = len(audio)
     for start in range(0, n, CLIP_LEN):
         clip = audio[start : start + CLIP_LEN]
-        if len(clip) < CLIP_LEN // 2:
+        real_len = len(clip)
+        if real_len < CLIP_LEN // 2:
             continue
-        if len(clip) < CLIP_LEN:
-            clip = np.pad(clip, (0, CLIP_LEN - len(clip)))
-        yield clip
+        if real_len < CLIP_LEN:
+            clip = np.pad(clip, (0, CLIP_LEN - real_len))
+        yield clip, real_len
 
 
 def compute_mel_spectrogram(
@@ -122,7 +123,7 @@ def process_and_save(
     audio = normalize_audio(audio)
 
     written = 0.0
-    for i, clip in enumerate(segment_audio(audio)):
+    for i, (clip, real_len) in enumerate(segment_audio(audio)):
         if budget["remaining_s"] <= 0:
             break
         mel = compute_mel_spectrogram(clip)  # [80, T]
@@ -141,7 +142,7 @@ def process_and_save(
             f0=f0,
             conf=conf,
         )
-        seconds = CLIP_LEN / cfg.target_sr
+        seconds = real_len / cfg.target_sr
         written += seconds
         budget["remaining_s"] -= seconds
     return written
