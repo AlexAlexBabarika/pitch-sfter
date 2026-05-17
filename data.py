@@ -12,21 +12,48 @@ data_cfg = DataConfig()
 audio_cfg = AudioConfig()
 train_cfg = TrainConfig()
 
-BINS_PER_OCT = audio_cfg.n_mels / math.log2(audio_cfg.fmax / max(audio_cfg.fmin, 20.0))
-BINS_PER_SEMITONE = BINS_PER_OCT / 12.0
+def _mel_centers_hz(n_mels: int, fmin: float, fmax: float) -> np.ndarray:
+    # HTK mel scale — matches torchaudio.transforms.MelSpectrogram default.
+    mel_min = 2595.0 * math.log10(1.0 + fmin / 700.0)
+    mel_max = 2595.0 * math.log10(1.0 + fmax / 700.0)
+    mels = np.linspace(mel_min, mel_max, n_mels + 2)
+    freqs = 700.0 * (10.0 ** (mels / 2595.0) - 1.0)
+    return freqs[1:-1]
+
+
+_MEL_CENTERS = _mel_centers_hz(
+    audio_cfg.n_mels, float(audio_cfg.fmin), float(audio_cfg.fmax)
+)
 
 
 def mel_pitch_shift(mel: torch.Tensor, semitones: float) -> torch.Tensor:
-    n_bin = round(BINS_PER_SEMITONE * semitones)
-    if n_bin == 0:
+    if semitones == 0:
         return mel
 
-    out = torch.roll(mel, shifts=n_bin, dims=-2)
-    if n_bin > 0:
-        out[:n_bin] = mel.min()
-    else:
-        out[n_bin:] = mel.min()
-    return out
+    n_mels = mel.shape[-2]
+    assert n_mels == _MEL_CENTERS.shape[0], (
+        f"mel.shape[-2]={n_mels} doesn't match AudioConfig.n_mels={_MEL_CENTERS.shape[0]}"
+    )
+
+    factor = 2.0 ** (-semitones / 12.0)
+    src_freqs = _MEL_CENTERS * factor
+
+    idx_hi = np.searchsorted(_MEL_CENTERS, src_freqs)
+    idx_lo = np.clip(idx_hi - 1, 0, n_mels - 1)
+    idx_hi = np.clip(idx_hi, 0, n_mels - 1)
+    pick_hi = np.abs(_MEL_CENTERS[idx_hi] - src_freqs) <= np.abs(
+        _MEL_CENTERS[idx_lo] - src_freqs
+    )
+    src_idx = np.where(pick_hi, idx_hi, idx_lo)
+    in_range = (src_freqs >= _MEL_CENTERS[0]) & (src_freqs <= _MEL_CENTERS[-1])
+
+    src_idx_t = torch.from_numpy(src_idx).long().to(mel.device)
+    in_range_t = torch.from_numpy(in_range).to(mel.device)
+    floor = mel.min()
+
+    out = mel.index_select(-2, src_idx_t)
+    mask_shape = [1] * (out.ndim - 2) + [n_mels, 1]
+    return torch.where(in_range_t.view(*mask_shape), out, floor)
 
 
 class PitchDataset(Dataset):
