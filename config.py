@@ -56,7 +56,7 @@ class DataConfig:
             ),
         }
     )
-    datasets_to_load: list[str] = field(default_factory=lambda: ["nsynth", "vctk"])
+    datasets_to_load: list[str] = field(default_factory=lambda: ["nsynth", "vctk", "opensinger_female", "opensinger_male"])
 
     def __post_init__(self):
         assert self.val_split < 1
