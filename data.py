@@ -52,11 +52,11 @@ class PitchDataset(Dataset):
         return len(self.files)
 
     def __getitem__(self, index):
-        d = np.load(self.files[index])
-        audio = d["audio"].astype(np.float32)
-        mel_tgt = torch.from_numpy(d["mel"])  # log-mel of the original clip
-        f0_raw = torch.from_numpy(d["f0"])  # Hz, aligned to mel frames
-        conf = torch.from_numpy(d["conf"])
+        with np.load(self.files[index]) as d:
+            audio = d["audio"].astype(np.float32, copy=True)
+            mel_tgt = torch.from_numpy(d["mel"].copy())  # log-mel of the original clip
+            f0_raw = torch.from_numpy(d["f0"].copy())  # Hz, aligned to mel frames
+            conf = torch.from_numpy(d["conf"].copy())
 
         if self.is_train:
             semis = random.uniform(-self.perturb_st, self.perturb_st)
@@ -88,7 +88,7 @@ class PitchDataset(Dataset):
 
         f0_hz_in = f0_raw * (2.0 ** (semis / 12.0))
         voiced = (conf > 0.5).to(f0_raw.dtype)
-        
+
         # Drop voicing when the shifted fundamental leaves the analysable
         # range (no harmonics left in the mel band).
         in_range = f0_hz_in < (audio_cfg.fmax / 2.0)
