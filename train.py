@@ -5,6 +5,7 @@ import sys
 import torch
 import torch.nn.functional as F
 from pathlib import Path
+from torch.utils.tensorboard.writer import SummaryWriter
 from tqdm import tqdm
 from config import TrainConfig
 from model import PitchUNet, count_params
@@ -69,6 +70,8 @@ def main():
     train_loader = PitchDataset.make_loader("train")
     val_loader = PitchDataset.make_loader("val")
 
+    writer = SummaryWriter(log_dir=train_config.tb_dir)
+
     step = 0
     ckpt = load_latest(Path(train_config.ckpt_dir))
     if ckpt is not None:
@@ -111,7 +114,9 @@ def main():
 
             opt.zero_grad(set_to_none=True)
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), train_config.grad_clip)
+            grad_norm = torch.nn.utils.clip_grad_norm_(
+                model.parameters(), train_config.grad_clip
+            )
             opt.step()
             sched.step()
             ema.update(model)
@@ -120,28 +125,35 @@ def main():
             pbar.update(1)
 
             if step % train_config.log_every == 0:
+                lr = sched.get_last_lr()[0]
                 pbar.set_postfix(
                     loss=f"{loss.item():.4f}",
                     l1=f"{parts['l1']:.4f}",
                     mr=f"{parts['mr']:.4f}",
-                    lr=f"{sched.get_last_lr()[0]:.2e}",
+                    lr=f"{lr:.2e}",
                 )
+                writer.add_scalar("train/loss", loss.item(), step)
+                writer.add_scalar("train/l1", parts["l1"], step)
+                writer.add_scalar("train/mr", parts["mr"], step)
+                writer.add_scalar("train/lr", lr, step)
+                writer.add_scalar("train/grad_norm", grad_norm.item(), step)
 
             if step % train_config.save_every == 0:
                 save_ckpt(model, ema, opt, sched, step)
 
             if step % train_config.val_every == 0:
-                validate(model, ema, eval_model, val_loader, step)
+                validate(model, ema, eval_model, val_loader, step, writer)
 
             if step >= train_config.max_steps:
                 break
 
     save_ckpt(model, ema, opt, sched, step, final=True)
     pbar.close()
+    writer.close()
 
 
 @torch.no_grad()
-def validate(model, ema, eval_model, loader, step):
+def validate(model, ema, eval_model, loader, step, writer):
     # Validate with EMA weights — reuse a single eval_model instead of
     # deep-copying `model` each call.
     ema.copy_to(eval_model)
@@ -160,7 +172,9 @@ def validate(model, ema, eval_model, loader, step):
     if n == 0:
         print(f"\n[val step {step}] empty val set — skipping")
     else:
-        print(f"\n[val step {step}] L1={total / n:.4f}")
+        val_l1 = total / n
+        print(f"\n[val step {step}] L1={val_l1:.4f}")
+        writer.add_scalar("val/l1", val_l1, step)
 
 
 _STEP_CKPT_RE = re.compile(r"^step_(\d+)\.pt$")

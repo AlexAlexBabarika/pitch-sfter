@@ -52,6 +52,7 @@ class TrainConfig:
     save_every: int = 100
     keep_last: int = 5
     ckpt_dir: str = "./checkpoints"
+    tb_dir: str = "./runs"
 
 
 @dataclass
