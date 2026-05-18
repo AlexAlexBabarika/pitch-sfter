@@ -99,7 +99,9 @@ def extract_f0(clips: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         return_periodicity=True,
     )
 
-    return pitch.cpu().numpy().astype(np.float32), periodicity.cpu().numpy().astype(np.float32)
+    return pitch.cpu().numpy().astype(np.float32), periodicity.cpu().numpy().astype(
+        np.float32
+    )
 
 
 def process_and_save(
@@ -138,9 +140,9 @@ def process_and_save(
         if f0.shape[0] != mel.shape[1]:
             # Nearest-neighbor: linear interp would smear CREPE's 0-Hz unvoiced
             # frames into bogus low pitches across voiced -> unvoiced transitions.
-            idx = np.round(
-                np.linspace(0, f0.shape[0] - 1, mel.shape[1])
-            ).astype(np.int64)
+            idx = np.round(np.linspace(0, f0.shape[0] - 1, mel.shape[1])).astype(
+                np.int64
+            )
             f0 = f0[idx]
             conf = conf[idx]
         out_path = out_dir / f"{base_id}_{i:04d}.npz"

@@ -93,16 +93,30 @@ class GatedSkip(nn.Module):
 
 
 class SelfAttn(nn.Module):
-    def __init__(self, channels: int, heads: int = 4):
+    def __init__(
+        self,
+        channels: int,
+        heads: int = 4,
+        h_max: int = 32,
+        w_max: int = 512,
+    ):
         super().__init__()
         self.norm = nn.GroupNorm(8, channels)
         self.qkv = nn.Conv2d(channels, channels * 3, 1)
         self.proj = nn.Conv2d(channels, channels, 1)
         self.heads = heads
+        self.pos_h = nn.Parameter(torch.zeros(1, channels, h_max, 1))
+        self.pos_w = nn.Parameter(torch.zeros(1, channels, 1, w_max))
 
     def forward(self, x):
         B, C, H, W = x.shape
+        H_max = self.pos_h.shape[-2]
+        W_max = self.pos_w.shape[-1]
+        assert H <= H_max and W <= W_max, (
+            f"SelfAttn input {H}x{W} exceeds PE cap {H_max}x{W_max}"
+        )
         h = self.norm(x)
+        h = h + self.pos_h[..., :H, :] + self.pos_w[..., :, :W]
         qkv = self.qkv(h).reshape(B, 3, self.heads, C // self.heads, H * W)
         q, k, v = qkv.unbind(1)  # [B, h, d, HW]
         q, k, v = (t.transpose(-1, -2).contiguous() for t in (q, k, v))  # [B, h, HW, d]

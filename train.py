@@ -72,7 +72,7 @@ def main():
     step = 0
     ckpt = load_latest(Path(train_config.ckpt_dir))
     if ckpt is not None:
-        model.load_state_dict(ckpt["model"])
+        model.load_state_dict(ckpt["model"], strict=False)
         opt.load_state_dict(ckpt["opt"])
         sched.load_state_dict(ckpt["sched"])
         ema.shadow = ckpt["ema"]["shadow"]
