@@ -35,11 +35,14 @@ def _audio_to_log_mel(audio: np.ndarray) -> torch.Tensor:
 
 class PitchDataset(Dataset):
     def __init__(
-        self, split: str = "train", subdirs: List[str] = data_cfg.datasets_to_load
+        self,
+        split: str = "train",
+        dataset_keys: List[str] = data_cfg.datasets_to_load,
     ):
         files = []
-        for subdir in subdirs:
-            with open(Path(data_cfg.cache_dir) / f"{subdir}_index.json") as f:
+        for key in dataset_keys:
+            spec = data_cfg.datasets[key]
+            with open(Path(data_cfg.cache_dir) / f"{spec.subdir}_index.json") as f:
                 files.extend(json.load(f))
 
         random.Random(0).shuffle(files)

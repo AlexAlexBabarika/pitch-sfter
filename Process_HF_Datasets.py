@@ -28,10 +28,14 @@ def _stream_parquet(files: list[str], target_sr: int):
 
 
 def process_nsynth(
-    parquet_root: Path, out_dir: Path, target_sr: int, budget_s: float
+    parquet_root: Path,
+    parquet_glob: str,
+    out_dir: Path,
+    target_sr: int,
+    budget_s: float,
 ) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
-    files = _local_parquet_files(parquet_root, "data/train/*.parquet")
+    files = _local_parquet_files(parquet_root, parquet_glob)
     if not files:
         raise FileNotFoundError(f"No NSynth parquet files under {parquet_root}")
 
@@ -54,10 +58,14 @@ def process_nsynth(
 
 
 def process_vctk(
-    parquet_root: Path, out_dir: Path, target_sr: int, budget_s: float
+    parquet_root: Path,
+    parquet_glob: str,
+    out_dir: Path,
+    target_sr: int,
+    budget_s: float,
 ) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
-    files = _local_parquet_files(parquet_root, "data/train-*.parquet")
+    files = _local_parquet_files(parquet_root, parquet_glob)
     if not files:
         raise FileNotFoundError(f"No VCTK parquet files under {parquet_root}")
 
@@ -76,6 +84,12 @@ def process_vctk(
     pbar.close()
 
 
+PROCESSORS = {
+    "nsynth": process_nsynth,
+    "vctk": process_vctk,
+}
+
+
 def main() -> None:
     data_cfg = DataConfig()
     audio_cfg = AudioConfig()
@@ -83,24 +97,17 @@ def main() -> None:
     cache = Path(data_cfg.cache_dir)
     cache.mkdir(parents=True, exist_ok=True)
 
-    nsynth_dir = DATASETS_DIR / data_cfg.nsynth_subdir_name
-    vctk_dir = DATASETS_DIR / data_cfg.vctk_subdir_name
-
     print("Processing datasets...")
-    process_nsynth(
-        nsynth_dir,
-        cache / data_cfg.nsynth_subdir_name,
-        audio_cfg.target_sr,
-        data_cfg.nsynth_length_hr * 3600.0,
-    )
-    _write_index(cache, data_cfg.nsynth_subdir_name)
-    process_vctk(
-        vctk_dir,
-        cache / data_cfg.vctk_subdir_name,
-        audio_cfg.target_sr,
-        data_cfg.vctk_length_hr * 3600.0,
-    )
-    _write_index(cache, data_cfg.vctk_subdir_name)
+    for key in data_cfg.datasets_to_load:
+        spec = data_cfg.datasets[key]
+        PROCESSORS[key](
+            DATASETS_DIR / spec.subdir,
+            spec.parquet_glob,
+            cache / spec.subdir,
+            audio_cfg.target_sr,
+            spec.length_hr * 3600.0,
+        )
+        _write_index(cache, spec.subdir)
 
 
 if __name__ == "__main__":

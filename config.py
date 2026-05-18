@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -10,27 +10,46 @@ class AudioConfig:
     n_mels: int = 80
     win_length: int = 1024
     clip_seconds: float = 2.56
-    crepe_model_capacity: str = "full"
+    crepe_model_capacity: str = "medium"
     fmin: int = 0
     fmax: int = 8000
+
+
+@dataclass(frozen=True)
+class DatasetSpec:
+    hf_name: str
+    subdir: str
+    length_hr: int
+    parquet_glob: str
 
 
 @dataclass
 class DataConfig:
     cache_dir: str = "./cache"
-
-    nsynth_hf_dataset_name: str = "jg583/NSynth"
-    nsynth_subdir_name: str = "nsynth"
-    nsynth_length_hr: int = 2
-
-    vctk_hf_dataset_name: str = "sanchit-gandhi/vctk"
-    vctk_subdir_name: str = "vctk"
-    vctk_length_hr: int = 2
-
-    datasets_to_load = ["nsynth", "vctk"]
     val_split: float = 0.02
 
-    assert val_split < 1
+    datasets: dict[str, DatasetSpec] = field(
+        default_factory=lambda: {
+            "nsynth": DatasetSpec(
+                hf_name="jg583/NSynth",
+                subdir="nsynth",
+                length_hr=2,
+                parquet_glob="data/train/*.parquet",
+            ),
+            "vctk": DatasetSpec(
+                hf_name="sanchit-gandhi/vctk",
+                subdir="vctk",
+                length_hr=2,
+                parquet_glob="data/train-*.parquet",
+            ),
+        }
+    )
+    datasets_to_load: list[str] = field(default_factory=lambda: ["nsynth", "vctk"])
+
+    def __post_init__(self):
+        assert self.val_split < 1
+        unknown = set(self.datasets_to_load) - self.datasets.keys()
+        assert not unknown, f"unknown datasets in datasets_to_load: {unknown}"
 
 
 @dataclass

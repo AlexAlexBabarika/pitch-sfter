@@ -36,20 +36,13 @@ def main() -> None:
 
     DATASETS_DIR.mkdir(parents=True, exist_ok=True)
 
-    nsynth_dir = DATASETS_DIR / data_cfg.nsynth_subdir_name
-    vctk_dir = DATASETS_DIR / data_cfg.vctk_subdir_name
-
     download_jobs = {
-        "nsynth": (
-            data_cfg.nsynth_hf_dataset_name,
-            nsynth_dir,
-            ["data/train/*.parquet"],
-        ),
-        "vctk": (
-            data_cfg.vctk_hf_dataset_name,
-            vctk_dir,
-            ["data/train-*.parquet"],
-        ),
+        key: (
+            data_cfg.datasets[key].hf_name,
+            DATASETS_DIR / data_cfg.datasets[key].subdir,
+            [data_cfg.datasets[key].parquet_glob],
+        )
+        for key in data_cfg.datasets_to_load
     }
 
     print(f"Downloading {list(download_jobs)} in parallel into {DATASETS_DIR}/")
