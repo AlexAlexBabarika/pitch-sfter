@@ -103,7 +103,7 @@ class PitchDataset(Dataset):
             "mel_in": mel_in.unsqueeze(0),  # [1, 80, T]
             "mel_tgt": mel_tgt.unsqueeze(0),  # [1, 80, T]
             "f0": f0_feat,  # [2, T]
-            "shift": -semis,
+            "shift": torch.tensor(-semis, dtype=torch.float32),
         }
 
     @staticmethod
@@ -119,4 +119,5 @@ class PitchDataset(Dataset):
             pin_memory=True,
             drop_last=is_train,
             persistent_workers=(nw > 0),
+            multiprocessing_context="spawn" if nw > 0 else None,
         )
