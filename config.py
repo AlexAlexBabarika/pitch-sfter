@@ -10,7 +10,7 @@ class AudioConfig:
     n_mels: int = 80
     win_length: int = 1024
     clip_seconds: float = 2.56
-    crepe_model_capacity: str = "medium"
+    crepe_model_capacity: str = "tiny"
     fmin: int = 0
     fmax: int = 8000
 
@@ -46,13 +46,13 @@ class DataConfig:
                 hf_name="CodecSR/opensinger_female",
                 subdir="opensinger_fem",
                 length_hr=2,
-                parquet_glob="data/train/*.parquet",
+                parquet_glob="data/original-*.parquet",
             ),
             "opensinger_male": DatasetSpec(
                 hf_name="CodecSR/opensinger_male",
                 subdir="opensinger_male",
                 length_hr=2,
-                parquet_glob="data/train/*.parquet",
+                parquet_glob="data/original-*.parquet",
             ),
         }
     )
