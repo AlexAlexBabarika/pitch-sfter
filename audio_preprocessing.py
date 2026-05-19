@@ -27,6 +27,8 @@ MEL_TRANSFORM = torchaudio.transforms.MelSpectrogram(
     f_max=cfg.fmax,
     power=1.0,
     center=True,
+    norm="slaney",
+    mel_scale="slaney",
 ).to(DEVICE)
 
 
@@ -74,6 +76,20 @@ def compute_mel_spectrogram(clips: np.ndarray) -> np.ndarray:
     t = torch.from_numpy(clips).float().to(DEVICE)
     m = MEL_TRANSFORM(t).cpu().numpy()
     return np.log(np.maximum(m, 1e-5)).astype(np.float32)
+
+
+def f0_to_feature(
+    f0_hz: torch.Tensor,
+    conf: torch.Tensor,
+    fmax: float = cfg.fmax,
+) -> torch.Tensor:
+    # f0_hz, conf: [..., T]. Returns [..., 2, T] = (log2(f0+1), voiced_mask)
+    # with voicing dropped when the fundamental leaves the analysable band.
+    voiced = (conf > 0.5).to(f0_hz.dtype)
+    in_range = (f0_hz < (fmax / 2.0)).to(f0_hz.dtype)
+    voiced = voiced * in_range
+    f0_norm = torch.log2(f0_hz.clamp(min=0.0) + 1.0)
+    return torch.stack([f0_norm, voiced], dim=-2)
 
 
 def extract_f0(clips: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
