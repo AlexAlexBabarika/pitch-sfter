@@ -223,10 +223,12 @@ def _step_ckpts(ckpt_dir: Path):
 
 
 def save_ckpt(model, ema, opt, sched, step, final=False):
-    name = "final.pt" if final else f"step_{step}.pt"
-    ckpt_dir = Path(train_config.ckpt_dir)
-    ckpt_dir.mkdir(parents=True, exist_ok=True)
-    path = ckpt_dir / name
+    if final:
+        path = Path("final.pt")
+    else:
+        ckpt_dir = Path(train_config.ckpt_dir)
+        ckpt_dir.mkdir(parents=True, exist_ok=True)
+        path = ckpt_dir / f"step_{step}.pt"
     tmp = path.with_suffix(path.suffix + ".tmp")
     torch.save(
         {
@@ -248,15 +250,16 @@ def save_ckpt(model, ema, opt, sched, step, final=False):
 
 
 def load_latest(ckpt_dir: Path):
-    if not ckpt_dir.exists():
-        return None
-    if (ckpt_dir / "final.pt").exists():
+    final = Path("final.pt")
+    if final.exists():
         print(
-            f"{ckpt_dir / 'final.pt'} exists — training already complete. "
+            f"{final} exists — training already complete. "
             "Delete it to start a new run.",
             file=sys.stderr,
         )
         sys.exit(0)
+    if not ckpt_dir.exists():
+        return None
     ckpts = _step_ckpts(ckpt_dir)
     if not ckpts:
         return None
