@@ -53,7 +53,7 @@ def process_nsynth(
         wav = ex["audio"]["array"].astype(np.float32)
         src_sr = ex["audio"]["sampling_rate"]
         sec = process_and_save(wav, src_sr, out_dir, f"n_{i:07d}", budget)
-        pbar.update(int(sec))
+        pbar.update(sec)
     pbar.close()
 
 
@@ -80,7 +80,7 @@ def process_vctk(
         src_sr = ex["audio"]["sampling_rate"]
         spk = ex.get("speaker_id", f"unk_{i}")
         sec = process_and_save(wav, src_sr, out_dir, f"v_{spk}_{i:06d}", budget)
-        pbar.update(int(sec))
+        pbar.update(sec)
     pbar.close()
 
 
@@ -110,15 +110,15 @@ def process_opensinger(
         sec = process_and_save(
             wav, src_sr, out_dir, f"o_{gender}_{spk}_{i:06d}", budget
         )
-        pbar.update(int(sec))
+        pbar.update(sec)
     pbar.close()
 
 
 PROCESSORS = {
+    "opensinger_male": process_opensinger,
     "nsynth": process_nsynth,
     "vctk": process_vctk,
     "opensinger_female": process_opensinger,
-    "opensinger_male": process_opensinger,
 }
 
 
